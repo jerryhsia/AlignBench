@@ -5,3 +5,6 @@ local*
 data/judgment
 data/model_answer
 data/results
+/venv
+/run.sh
+/.idea

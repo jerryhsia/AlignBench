@@ -9,6 +9,8 @@ import dataclasses
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from tenacity import retry, wait_random_exponential, stop_after_attempt
+import threading
+file_lock = threading.Lock()
 
 @dataclasses.dataclass
 class Sample:
@@ -132,15 +134,16 @@ def get_GPT_4_judgment(config, messages):
     def single_turn_wrapper(text):
         return [{"role": "user", "content": text}]
 
-    url = config.openai_api_url
-    key = config.openai_api_key
+    url = os.environ.get('API_URL', config.openai_api_url)
+    key = os.environ.get('API_KEY', config.openai_api_key)
+    model = os.environ.get('API_MODEL', 'gpt-4')
 
     if isinstance(messages, str):
         messages = single_turn_wrapper(messages)
     payload = json.dumps({
-        "model": "gpt-4",
+        "model": model,
         "messages": messages,
-        "temperature": 0,
+        # "temperature": 0,
     })
     headers = {
         'Content-Type': 'application/json',
@@ -192,10 +195,12 @@ def main(args, config:Config):
         doc["rating"] = judge.rating
         doc["score"] = judge.score
 
-        with open(save_file, "a") as f:
-            f.write(json.dumps(doc, ensure_ascii=False))
-            f.write('\n')
-            f.close()
+        # 解决线程安全问题
+        with file_lock:
+            with open(save_file, "a") as f:
+                f.write(json.dumps(doc, ensure_ascii=False))
+                f.write('\n')
+                f.close()
 
     if args.parallel == 1:
         for doc in tqdm(docs):
